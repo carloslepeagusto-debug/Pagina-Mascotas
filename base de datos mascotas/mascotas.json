@@ -1,0 +1,14 @@
+[
+  {
+    "nombre": "Tom",
+    "rut_dueno": "12345678-9"
+  },
+  {
+    "nombre": "Luna",
+    "rut_dueno": "98765432-1"
+  },
+  {
+    "nombre": "Pelusa",
+    "rut_dueno": "12345678-9"
+  }
+]

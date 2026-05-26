@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Gobierno de Chile - Registro Civil de Mascotas</title>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <style>
+        body { font-family: 'Arial', sans-serif; background-color: #f7f9fc; margin: 0; padding: 20px; }
+        .container { max-width: 900px; margin: auto; background: white; padding: 30px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+        .header-gob { background: #0f4c81; color: white; padding: 15px; border-radius: 6px; text-align: center; margin-bottom: 25px; }
+        h2 { margin: 0; font-size: 24px; }
+        h3 { color: #0f4c81; border-bottom: 2px solid #eee; padding-bottom: 6px; }
+        .row { display: flex; gap: 20px; flex-wrap: wrap; margin-bottom: 20px; }
+        .card { flex: 1; min-width: 280px; background: #fdfdfd; padding: 15px; border: 1px solid #ddd; border-radius: 6px; }
+        input { width: 100%; padding: 10px; margin: 8px 0; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
+        button { width: 100%; background: #0f4c81; color: white; border: none; padding: 10px; border-radius: 4px; font-weight: bold; cursor: pointer; margin-top: 5px; }
+        button:hover { background: #1d6fa5; }
+        button.secondary { background: #6c757d; }
+        button.secondary:hover { background: #5a6268; }
+        button.danger { background: #c82333; }
+        button.danger:hover { background: #bd2130; }
+        .lista-mascotas { background: #f8f9fa; border: 1px solid #e9ecef; padding: 15px; border-radius: 6px; margin-top: 15px; min-height: 50px; }
+        .mascota-item { display: flex; justify-content: space-between; align-items: center; background: white; padding: 10px; border: 1px solid #eee; margin-bottom: 8px; border-radius: 4px; }
+        .alert-error { background: #f8d7da; color: #721c24; padding: 12px; border-radius: 4px; margin-bottom: 15px; border-left: 5px solid #f5c6cb; display: none; }
+        .alert-success { background: #d4edda; color: #155724; padding: 12px; border-radius: 4px; margin-bottom: 15px; border-left: 5px solid #c3e6cb; display: none; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="header-gob">
+        <h2>🇨🇱 Registro Civil de Mascotas</h2>
+        <p>Ministerio de las Mascotas - Gobierno de Chile</p>
+    </div>
+
+    <div id="errorBox" class="alert-error"></div>
+    <div id="successBox" class="alert-success"></div>
+
+    <div class="row">
+        <div class="card">
+            <h3>Inscribir Nueva Mascota</h3>
+            <form id="formInscribir">
+                <label>Nombre de la Mascota:</label>
+                <input type="text" id="insNombre" placeholder="Ej: Bobby" required>
+                <label>RUT del Dueño:</label>
+                <input type="text" id="insRut" placeholder="Ej: 12345678-9" required>
+                <button type="submit">Inscribir Mascota</button>
+            </form>
+        </div>
+
+        <div class="card">
+            <h3>Filtros y Consultas</h3>
+            <label>Buscar por Nombre Mascota:</label>
+            <div style="display:flex; gap:5px;">
+                <input type="text" id="buscarNombre" placeholder="Nombre">
+                <button style="width:auto;" onclick="consultarPorNombre()">Buscar</button>
+            </div>
+            
+            <label>Buscar por RUT Dueño:</label>
+            <div style="display:flex; gap:5px;">
+                <input type="text" id="buscarRut" placeholder="RUT">
+                <button style="width:auto;" onclick="consultarPorRut()">Buscar</button>
+            </div>
+            <button class="secondary" onclick="listarTodas()" style="margin-top:15px;">Mostrar Todas las Mascotas</button>
+        </div>
+    </div>
+
+    <h3>Registros Actuales</h3>
+    <div id="listaContenedor" class="lista-mascotas">
+        </div>
+</div>
+
+<script>
+    const API_URL = 'http://localhost:3000/api/mascotas';
+
+    // Funciones para manejar la capa de alertas
+    function mostrarError(mensaje) {
+        const box = document.getElementById('errorBox');
+        box.innerText = "⚠️ ERROR: " + mensaje;
+        box.style.display = 'block';
+        document.getElementById('successBox').style.style = 'none';
+        setTimeout(() => box.style.display = 'none', 5000);
+    }
+
+    function mostrarExito(mensaje) {
+        const box = document.getElementById('successBox');
+        box.innerText = "✅ " + mensaje;
+        box.style.display = 'block';
+        document.getElementById('errorBox').style.display = 'none';
+        setTimeout(() => box.style.display = 'none', 4000);
+    }
+
+    // RENDERIZAR REGISTROS
+    function dibujarLista(arregloMascotas) {
+        const contenedor = document.getElementById('listaContenedor');
+        contenedor.innerHTML = '';
+
+        if (!Array.isArray(arregloMascotas)) {
+            arregloMascotas = [arregloMascotas]; // Convertir objeto único a array para reutilizar lógica
+        }
+
+        if (arregloMascotas.length === 0) {
+            contenedor.innerHTML = '<p style="color:#666; text-align:center;">No hay mascotas que coincidan con la búsqueda.</p>';
+            return;
+        }
+
+        arregloMascotas.forEach(m => {
+            contenedor.innerHTML += `
+                <div class="mascota-item">
+                    <div>
+                        <strong>🐾 ${m.nombre}</strong> <span style="margin-left:15px; color:#555;">Dueño RUT: ${m.rut_dueno}</span>
+                    </div>
+                    <div style="display:flex; gap:5px;">
+                        <button class="danger" style="padding:5px 10px; font-size:12px; width:auto;" onclick="eliminarPorNombre('${m.nombre}')">Eliminar Mascota</button>
+                        <button class="danger" style="padding:5px 10px; font-size:12px; width:auto; background:#8b0000;" onclick="eliminarPorRut('${m.rut_dueno}')">Eliminar Todo el RUT</button>
+                    </div>
+                </div>
+            `;
+        });
+    }
+
+    // 1. GET SIN PARÁMETROS: Mostrar todas
+    async function listarTodas() {
+        try {
+            const response = await axios.get(API_URL);
+            dibujarLista(response.data);
+        } catch (error) {
+            manejarErrorAxios(error);
+        }
+    }
+
+    // 2. GET CON PARÁMETRO NOMBRE
+    async function consultarPorNombre() {
+        const nombre = document.getElementById('buscarNombre').value.trim();
+        if(!nombre) return mostrarError('Escriba un nombre para buscar');
+        try {
+            const response = await axios.get(`${API_URL}?nombre=${nombre}`);
+            dibujarLista(response.data);
+        } catch (error) {
+            manejarErrorAxios(error);
+        }
+    }
+
+    // 3. GET CON PARÁMETRO RUT
+    async function consultarPorRut() {
+        const rut = document.getElementById('buscarRut').value.trim();
+        if(!rut) return mostrarError('Escriba un RUT para buscar');
+        try {
+            const response = await axios.get(`${API_URL}?rut=${rut}`);
+            dibujarLista(response.data);
+        } catch (error) {
+            manejarErrorAxios(error);
+        }
+    }
+
+    // 4. POST: Insertar Mascota
+    document.getElementById('formInscribir').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const payload = {
+            nombre: document.getElementById('insNombre').value,
+            rut_dueno: document.getElementById('insRut').value
+        };
+
+        try {
+            const response = await axios.post(API_URL, payload);
+            mostrarExito(response.data.mensaje);
+            document.getElementById('formInscribir').reset();
+            listarTodas();
+        } catch (error) {
+            manejarErrorAxios(error);
+        }
+    });
+
+    // 5. DELETE CON PARÁMETRO NOMBRE
+    async function eliminarPorNombre(nombre) {
+        if(confirm(`¿Desea dar de baja a la mascota '${nombre}' del Registro Civil?`)) {
+            try {
+                const response = await axios.delete(`${API_URL}?nombre=${nombre}`);
+                mostrarExito(response.data.mensaje);
+                listarTodas();
+            } catch (error) {
+                manejarErrorAxios(error);
+            }
+        }
+    }
+
+    // 6. DELETE CON PARÁMETRO RUT
+    async function eliminarPorRut(rut) {
+        if(confirm(`¿Desea eliminar TODAS las mascotas del dueño con RUT: ${rut}?`)) {
+            try {
+                const response = await axios.delete(`${API_URL}?rut=${rut}`);
+                mostrarExito(response.data.mensaje);
+                listarTodas();
+            } catch (error) {
+                manejarErrorAxios(error);
+            }
+        }
+    }
+
+    // CAPA DE MANEJO DE ERRORES ADECUADA (Requerida en Parte 2)
+    function manejarErrorAxios(error) {
+        if (error.response) {
+            // El servidor respondió con un código de estado fuera del rango 2xx
+            mostrarError(error.response.data.error || 'Error en el servidor.');
+        } else if (error.request) {
+            // La petición se realizó pero no hubo respuesta (servidor apagado)
+            mostrarError('No se pudo conectar con el servidor backend. Verifique que server.js esté corriendo.');
+        } else {
+            // Ocurrió algún otro problema al armar la petición
+            mostrarError('Error inesperado de comunicación: ' + error.message);
+        }
+    }
+
+    // Carga inicial automática al abrir el navegador
+    listarTodas();
+</script>
+</body>
+</html>
